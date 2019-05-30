@@ -232,7 +232,7 @@ namespace Server.Spells
             if (map == null)
                 return false;
 
-            for (int offset = 0; offset < 10; ++offset)
+            for (int offset = 0; offset < 25; ++offset)
             {
                 Point3D loc = new Point3D(p.X, p.Y, p.Z - offset);
 
@@ -358,8 +358,11 @@ namespace Server.Spells
             string name = String.Format("[Magic] {0} Buff", type);
 
             StatMod mod = target.GetStatMod(name);
-			if (mod != null)
-				offset = Math.Max(mod.Offset, offset);
+
+            if (mod != null)
+            {
+                offset = Math.Max(mod.Offset, offset);
+            }
 
             target.AddStatMod(new StatMod(type, name, offset, duration));
 			Timer.DelayCall(duration, RemoveStatOffsetCallback, target);
@@ -469,11 +472,11 @@ namespace Server.Spells
                 switch( type )
                 {
                     case StatType.Str:
-                        return (int)(target.RawStr * percent);
+                        return (int)Math.Ceiling(target.RawStr * percent);
                     case StatType.Dex:
-                        return (int)(target.RawDex * percent);
+                        return (int)Math.Ceiling(target.RawDex * percent);
                     case StatType.Int:
-                        return (int)(target.RawInt * percent);
+                        return (int)Math.Ceiling(target.RawInt * percent);
                 }
             }
 

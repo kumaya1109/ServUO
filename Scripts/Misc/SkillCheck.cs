@@ -184,7 +184,8 @@ namespace Server.Misc
 			if (from.Skills.Cap == 0)
 				return false;
 
-			var success = Utility.RandomDouble() <= chance;
+            //var success = Utility.RandomDouble() <= chance;
+            var success = Utility.Random(100) <= (int)(chance * 100);
 			var gc = (double)(from.Skills.Cap - from.Skills.Total) / from.Skills.Cap;
 
 			gc += (skill.Cap - skill.Base) / skill.Cap;
@@ -213,7 +214,9 @@ namespace Server.Misc
 				}
 			}
 
-			return success;
+            EventSink.InvokeSkillCheck(new SkillCheckEventArgs(from, skill, success));
+
+            return success;
 		}
 
 		public static bool Mobile_SkillCheckTarget(
@@ -348,7 +351,7 @@ namespace Server.Misc
 				#endregion
 
 				#region Skill Masteries
-				else if (from is BaseCreature && (((BaseCreature)from).Controlled || ((BaseCreature)from).Summoned))
+				else if (from is BaseCreature && !(from is Server.Engines.Despise.DespiseCreature) && (((BaseCreature)from).Controlled || ((BaseCreature)from).Summoned))
 				{
 					var master = ((BaseCreature)from).GetMaster();
 

@@ -568,6 +568,8 @@ namespace Server.Mobiles
         #endregion
 
         #region Pet Training
+        public static double MaxTameRequirement = 108.0;
+
         private AbilityProfile _Profile;
         private TrainingProfile _TrainingProfile;
 
@@ -737,37 +739,19 @@ namespace Server.Mobiles
 
         public void AdjustTameRequirements()
         {
-            CurrentTameSkill = CalculateCurrentTameSkill(ControlSlots);
-        }
-
-        public double CalculateCurrentTameSkill(int currentControlSlots)
-        {
-            double minSkill = Math.Ceiling(MinTameSkill);
-            double current = 0;
-
-            if (currentControlSlots <= ControlSlots)
+            if (ControlSlots <= ControlSlotsMin)
             {
-                current = MinTameSkill;
+                CurrentTameSkill = MinTameSkill;
             }
-            else if (MinTameSkill < 108) // Currently, with increased control slots, taming skill does not seem to pass 108.0
+            else
             {
-                if (MinTameSkill <= 0)
-                {
-                    current = Math.Ceiling(Math.Min(108.0, Math.Max(0, CurrentTameSkill) + (Math.Abs(minSkill) * .7)));
-                }
-                else
-                {
-                    double level = currentControlSlots - ControlSlotsMin;
-                    double levelFactor = (double)(1 + (ControlSlotsMax - ControlSlotsMin)) / minSkill;
-
-                    current = Math.Ceiling(Math.Min(108.0, minSkill + (minSkill * ((levelFactor * 7) * level))));
-                }
+                CurrentTameSkill = ((ControlSlots - ControlSlotsMin) * 21) + 1;
             }
 
-            if (current < MinTameSkill)
-                current = MinTameSkill;
-
-            return current;
+            if (CurrentTameSkill > MaxTameRequirement)
+            {
+                CurrentTameSkill = MaxTameRequirement;
+            }
         }
         #endregion
 
@@ -1315,11 +1299,6 @@ namespace Server.Mobiles
             }
         }
 
-        /*
-        Solen Style, override me for other mobiles/items:
-        kappa+acidslime, grizzles+whatever, etc.
-        */
-
         public virtual Item NewHarmfulItem()
         {
             return new PoolOfAcid(TimeSpan.FromSeconds(10), 30, 30);
@@ -1340,28 +1319,30 @@ namespace Server.Mobiles
         {
             foreach (Mobile m in SpellHelper.AcquireIndirectTargets(this, this, Map, 2).OfType<Mobile>())
             {
-                DoHarmful(m);
-
-                m.FixedParticles(0x374A, 10, 15, 5013, 0x496, 0, EffectLayer.Waist);
-                m.PlaySound(0x231);
-
-                m.SendMessage("You feel the life drain out of you!");
-
-                int toDrain = GetDrainAmount(m);
-
-                //Monster Stealables
-                if (m is PlayerMobile)
-                {
-                    PlayerMobile pm = m as PlayerMobile;
-                    toDrain = (int)LifeShieldLotion.HandleLifeDrain(pm, toDrain);
-                }
-                //end
-
-
-                Hits += toDrain;
-                m.Damage(toDrain, this);
+                DoLifeDrain(m);
             }
         }
+
+        public virtual void DoLifeDrain(Mobile m)
+        {
+            DoHarmful(m);
+
+            m.FixedParticles(0x374A, 10, 15, 5013, 0x496, 0, EffectLayer.Waist);
+            m.PlaySound(0x231);
+
+            m.SendMessage("You feel the life drain out of you!");
+
+            int toDrain = GetDrainAmount(m);
+
+            if (m is PlayerMobile)
+            {
+                toDrain = (int)LifeShieldLotion.HandleLifeDrain((PlayerMobile)m, toDrain);
+            }
+
+            Hits += toDrain;
+            AOS.Damage(m, this, toDrain, 0, 0, 0, 0, 0, 0, 100);
+        }
+
         #endregion
 
         #region Colossal Blow
@@ -2748,7 +2729,7 @@ namespace Server.Mobiles
         {
             base.Serialize(writer);
 
-            writer.Write(26); // version
+            writer.Write(27); // version
 
             writer.Write(CanMove);
             writer.Write(_LockDirection);
@@ -2930,6 +2911,7 @@ namespace Server.Mobiles
 
             switch (version)
             {
+                case 27: // Pet Slot Fix
                 case 26:
                 {
                     CanMove = reader.ReadBool();
@@ -3260,6 +3242,15 @@ namespace Server.Mobiles
             if (version >= 25)
             {
                 CurrentTameSkill = reader.ReadDouble();
+
+                if (Controlled && version == 26)
+                {
+                    AdjustTameRequirements();
+                }
+                else if (Controlled && CurrentTameSkill > MaxTameRequirement)
+                {
+                    CurrentTameSkill = MaxTameRequirement;
+                }
             }
             else
             {
@@ -4065,12 +4056,19 @@ namespace Server.Mobiles
             {
                 double skill = m_dMinTameSkill;
 
-                m_dMinTameSkill = value;
-
-                if (skill != m_dMinTameSkill)
+                if (skill != value)
                 {
-                    m_CurrentTameSkill = value;
-                    AdjustTameRequirements();
+                    m_dMinTameSkill = value;
+                    var adjusted = CurrentTameSkill - skill;
+
+                    if (adjusted > 0)
+                    {
+                        m_CurrentTameSkill = value + adjusted;
+                    }
+                    else
+                    {
+                        m_CurrentTameSkill = value;
+                    }
                 }
             } 
         }
@@ -4253,7 +4251,7 @@ namespace Server.Mobiles
             }
         }
 
-        public Poison GetHitPoison()
+        public virtual Poison GetHitPoison()
         {
             if (!PetTrainingHelper.Enabled || !Controlled)
                 return HitPoison;
@@ -6681,12 +6679,8 @@ namespace Server.Mobiles
 
                         OnKilledBy(ds.m_Mobile);
 
-                        // TODO: Move this to XmlQuest.cs OnKilledBy Event Handler
                         if (HumilityVirtue.IsInHunt(ds.m_Mobile) && Karma < 0)
                             HumilityVirtue.RegisterKill(ds.m_Mobile, this, list.Count);
-
-                        // TODO: Move this to XmlQuest.cs OnKilledBy Event Handler
-                        XmlQuest.RegisterKill(this, ds.m_Mobile);
 
                         if (!givenFactionKill)
                         {
@@ -6704,30 +6698,6 @@ namespace Server.Mobiles
                         if (!givenVASKill && VirtueArtifactsSystem.HandleKill(this, ds.m_Mobile))
                         {
                             givenVASKill = true;
-                        }
-
-                        // TODO: Move this to DemonKnight.cs OnKilledBy Event Handler
-                        if (region.IsPartOf("Doom Gauntlet") || region.Name == "GauntletRegion")
-                        {
-                            DemonKnight.HandleKill(this, ds.m_Mobile);
-                        }
-
-                        // TODO: Move this to PointsSystem.cs OnKilledBy Event Handler
-                        Server.Engines.Points.PointsSystem.HandleKill(this, ds.m_Mobile, i);
-
-                        PlayerMobile pm = ds.m_Mobile as PlayerMobile;
-
-                        if (pm != null)
-                        {
-                            // TODO: Move this to QuestHelper.cs OnKilledBy Event Handler
-                            QuestHelper.CheckCreature(pm, this); // This line moved up...
-
-                            QuestSystem qs = pm.Quest;
-
-                            if (qs != null)
-                            {
-                                qs.OnKill(this, c);
-                            }
                         }
                     }
 
@@ -7380,15 +7350,9 @@ namespace Server.Mobiles
 
             for (int i = 0; i < 10; i++)
             {
-                int x = from.X + Utility.Random(range);
-                int y = from.Y + Utility.Random(range);
+                int x = from.X + Utility.RandomMinMax(-range, range);
+                int y = from.Y + Utility.RandomMinMax(-range, range);
                 int z = map.GetAverageZ(x, y);
-
-                if (Utility.RandomBool())
-                    x *= -1;
-
-                if (Utility.RandomBool())
-                    y *= -1;
 
                 Point3D p = new Point3D(x, y, from.Z);
 

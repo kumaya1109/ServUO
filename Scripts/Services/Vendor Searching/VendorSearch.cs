@@ -61,6 +61,11 @@ namespace Server.Engines.VendorSearching
 			
 			Item item = vitem.Item;
 
+            if (item is CommodityDeed && ((CommodityDeed)item).Commodity != null)
+            {
+                item = ((CommodityDeed)item).Commodity;
+            }
+
             if (searchCriteria.MinPrice > -1 && vitem.Price < searchCriteria.MinPrice)
 				return false;
 
@@ -69,7 +74,25 @@ namespace Server.Engines.VendorSearching
 			
 			if (!String.IsNullOrEmpty(searchCriteria.SearchName))
 			{
-				string name = GetItemName(item);
+                string name;
+
+                if (item is CommodityDeed && ((CommodityDeed)item).Commodity is ICommodity)
+                {
+                    var commodity = (ICommodity)((CommodityDeed)item).Commodity;
+
+                    if (!String.IsNullOrEmpty(commodity.Description.String))
+                    {
+                        name = commodity.Description.String;
+                    }
+                    else
+                    {
+                        name = StringList.GetString(commodity.Description.Number);
+                    }
+                }
+                else
+                {
+                    name = GetItemName(item);
+                }
 				
 				if(name == null)
 				{
@@ -379,6 +402,38 @@ namespace Server.Engines.VendorSearching
 
         private static bool CheckKeyword(string searchstring, Item item)
         {
+            if (item is CommodityDeed && ((CommodityDeed)item).Commodity != null)
+            {
+                item = ((CommodityDeed)item).Commodity;
+            }
+
+            if (item is IResource)
+            {
+                var resName = CraftResources.GetName(((IResource)item).Resource);
+
+                if (resName.ToLower().IndexOf(searchstring.ToLower()) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            if (item is ICommodity)
+            {
+                var commodity = (ICommodity)item;
+
+                string name = commodity.Description.String;
+
+                if (String.IsNullOrEmpty(name) && commodity.Description.Number > 0)
+                {
+                    name = StringList.GetString(commodity.Description.Number);
+                }
+
+                if (!String.IsNullOrEmpty(name) && name.ToLower().IndexOf(searchstring.ToLower()) >= 0)
+                {
+                    return true;
+                }
+            }
+
             return Keywords.ContainsKey(searchstring.ToLower()) && Keywords[searchstring.ToLower()] == item.GetType();
         }
 

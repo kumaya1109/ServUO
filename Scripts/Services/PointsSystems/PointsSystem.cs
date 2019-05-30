@@ -76,7 +76,7 @@ namespace Server.Engines.Points
             Systems.Add(system);
         }
 
-        public virtual void ProcessKill(BaseCreature victim, Mobile damager, int index)
+        public virtual void ProcessKill(Mobile victim, Mobile damager)
         {
         }
 
@@ -354,6 +354,7 @@ namespace Server.Engines.Points
             EventSink.WorldSave += OnSave;
             EventSink.WorldLoad += OnLoad;
             EventSink.QuestComplete += CompleteQuest;
+            EventSink.OnKilledBy += OnKilledBy;
 
             Systems = new List<PointsSystem>();
 
@@ -374,9 +375,14 @@ namespace Server.Engines.Points
             SorcerersDungeon = new SorcerersDungeonData();
         }
 
-        public static void HandleKill(BaseCreature victim, Mobile damager, int index)
+        public static void OnKilledBy(OnKilledByEventArgs e)
         {
-            Systems.ForEach(s => s.ProcessKill(victim, damager, index));
+            OnKilledBy(e.Killed, e.KilledBy);
+        }
+
+        public static void OnKilledBy(Mobile victim, Mobile damager)
+        {
+            Systems.ForEach(s => s.ProcessKill(victim, damager));
         }
 
         public static void CompleteQuest(QuestCompleteEventArgs e)
@@ -388,8 +394,11 @@ namespace Server.Engines.Points
 
     public class PointsEntry
 	{
-		public PlayerMobile Player { get; set; }
-		public double Points { get; set; }
+        [CommandProperty(AccessLevel.GameMaster)]
+		public PlayerMobile Player { get; private set; }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public double Points { get; set; }
 
         public PointsEntry(PlayerMobile pm)
         {

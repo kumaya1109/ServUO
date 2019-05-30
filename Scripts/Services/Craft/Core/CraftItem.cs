@@ -1062,7 +1062,7 @@ namespace Server.Engines.Craft
 				m_ResHue = 0;
 				m_ResAmount = 0;
 				m_System = craftSystem;
-                m_CaddelliteCraft = true;
+                CaddelliteCraft = true;
 
 				if (IsQuantityType(types))
 				{
@@ -1190,10 +1190,11 @@ namespace Server.Engines.Craft
         private int m_ClothHue;
 		private int m_ResAmount;
 		private CraftSystem m_System;
-        private bool m_CaddelliteCraft;
 
-		#region Plant Pigments
-		private PlantHue m_PlantHue = PlantHue.None;
+        public bool CaddelliteCraft { get; private set; }
+
+        #region Plant Pigments
+        private PlantHue m_PlantHue = PlantHue.None;
 		private PlantPigmentHue m_PlantPigmentHue = PlantPigmentHue.None;
 		#endregion
 
@@ -1226,9 +1227,9 @@ namespace Server.Engines.Craft
 				m_ResAmount = amount;
 			}
 
-            if (m_CaddelliteCraft && (!item.HasSocket<Caddellite>() || !Server.Engines.Points.PointsSystem.Khaldun.InSeason))
+            if (CaddelliteCraft && (!item.HasSocket<Caddellite>() || !Server.Engines.Points.PointsSystem.Khaldun.InSeason))
             {
-                m_CaddelliteCraft = false;
+                CaddelliteCraft = false;
             }
 		}
 
@@ -1538,7 +1539,7 @@ namespace Server.Engines.Craft
 		{
 			int badCraft = craftSystem.CanCraft(from, tool, m_Type);
 
-			if (badCraft > 0)
+            if (badCraft > 0)
 			{
 				if (tool != null && !tool.Deleted && tool.UsesRemaining > 0)
 				{
@@ -1823,7 +1824,7 @@ namespace Server.Engines.Craft
                     m_PlantPigmentHue = PlantPigmentHue.None;
 					#endregion
 
-                    if (m_CaddelliteCraft)
+                    if (CaddelliteCraft)
                     {
                         Caddellite.TryInfuse(from, item, craftSystem);
                     }
@@ -1845,19 +1846,13 @@ namespace Server.Engines.Craft
                         from.AddToBackpack(item);
                     }
 
-                    if (tool is Item) // sanity check
-                    {
-                        EventSink.InvokeCraftSuccess(new CraftSuccessEventArgs(from, item, (Item)tool));
-                    }
+                    EventSink.InvokeCraftSuccess(new CraftSuccessEventArgs(from, item, tool is Item ? (Item)tool : null));
 
 					if (from.IsStaff())
 					{
 						CommandLogging.WriteLine(
 							from, "Crafting {0} with craft system {1}", CommandLogging.Format(item), craftSystem.GetType().Name);
 					}
-
-                    AutoCraftTimer.OnSuccessfulCraft(from);
-					//from.PlaySound( 0x57 );
 				}
 
                 tool.UsesRemaining--;

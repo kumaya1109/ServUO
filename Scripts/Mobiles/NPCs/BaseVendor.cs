@@ -1237,14 +1237,14 @@ namespace Server.Mobiles
                     else
                         BulkOrderSystem.ComputePoints((LargeBOD)dropped, out points, out banked);
 
-                    context.AddPending(BODType, points);
-
                     switch (context.PointsMode)
                     {
                         case PointsMode.Enabled:
+                            context.AddPending(BODType, points);
                             from.SendGump(new ConfirmBankPointsGump((PlayerMobile)from, this, this.BODType, points, banked));
                             break;
                         case PointsMode.Disabled:
+                            context.AddPending(BODType, points);
                             from.SendGump(new RewardsGump(this, (PlayerMobile)from, this.BODType, points));
                             break;
                         case PointsMode.Automatic:
@@ -1525,8 +1525,6 @@ namespace Server.Mobiles
 			{
 				Item item = (Item)o;
 
-                bii.OnBought(this, amount);
-
 				if (item.Stackable)
 				{
 					item.Amount = amount;
@@ -1560,12 +1558,14 @@ namespace Server.Mobiles
 						}
 					}
 				}
-			}
+
+                bii.OnBought(buyer, this, item, amount);
+            }
 			else if (o is Mobile)
 			{
 				Mobile m = (Mobile)o;
 
-                bii.OnBought(this, amount);
+                bii.OnBought(buyer, this, m, amount);
 
 				m.Direction = (Direction)Utility.Random(8);
 				m.MoveToWorld(buyer.Location, buyer.Map);
@@ -2199,8 +2199,12 @@ namespace Server.Mobiles
 							}
 						}
 
-						GiveGold += ssi.GetSellPriceFor(resp.Item, this) * amount;
-						break;
+                        var singlePrice = ssi.GetSellPriceFor(resp.Item, this);
+                        GiveGold += singlePrice * amount;
+
+                        EventSink.InvokeValidVendorSell(new ValidVendorSellEventArgs(seller, this, resp.Item, singlePrice));
+
+                        break;
 					}
 				}
 			}
@@ -2515,7 +2519,7 @@ namespace Server.Mobiles
 
         protected virtual bool CanConvertArmor(Mobile from, BaseArmor armor)
         {
-            if (armor == null || armor is BaseShield || armor.ArtifactRarity != 0 || armor.IsArtifact)
+            if (armor == null || armor is BaseShield/*|| armor.ArtifactRarity != 0 || armor.IsArtifact*/)
             {
                 from.SendLocalizedMessage(1113044); // You can't convert that.
                 return false;
@@ -2739,7 +2743,7 @@ namespace Server
         int TotalBought { get; set; }
         int TotalSold { get; set; }
 
-        void OnBought(BaseVendor vendor, int amount);
+        void OnBought(Mobile buyer, BaseVendor vendor, IEntity entity, int amount);
         void OnSold(BaseVendor vendor, int amount);
 
 		//display price of the item
